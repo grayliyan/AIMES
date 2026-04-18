@@ -14,10 +14,12 @@ const formData = ref({
   full_name: ''
 })
 const error = ref('')
+const success = ref('')
 const loading = ref(false)
 
 const handleRegister = async () => {
   error.value = ''
+  success.value = ''
 
   if (!formData.value.username || !formData.value.email || !formData.value.password) {
     error.value = '请填写所有必填字段'
@@ -44,7 +46,10 @@ const handleRegister = async () => {
   })
 
   if (result.success) {
-    router.push('/login')
+    success.value = '注册成功！即将跳转到登录页面...'
+    setTimeout(() => {
+      router.push('/login')
+    }, 2000)
   } else {
     error.value = result.message
   }
@@ -125,11 +130,15 @@ const goHome = () => {
           />
         </div>
 
+        <div v-if="success" class="success-message">
+          {{ success }}
+        </div>
+
         <div v-if="error" class="error-message">
           {{ error }}
         </div>
 
-        <button type="submit" class="btn-register" :disabled="loading">
+        <button type="submit" class="btn-register" :disabled="loading || success">
           {{ loading ? '注册中...' : '注 册' }}
         </button>
       </form>
@@ -215,6 +224,16 @@ const goHome = () => {
 .form-group input:disabled {
   background-color: #f5f5f5;
   cursor: not-allowed;
+}
+
+.success-message {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 .error-message {
