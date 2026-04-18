@@ -9,6 +9,7 @@ const userStore = useUserStore()
 const username = ref('')
 const password = ref('')
 const error = ref('')
+const success = ref('')
 const loading = ref(false)
 
 const handleLogin = async () => {
@@ -19,11 +20,15 @@ const handleLogin = async () => {
 
   loading.value = true
   error.value = ''
+  success.value = ''
 
   const result = await userStore.login(username.value, password.value)
 
   if (result.success) {
-    router.push('/dashboard')
+    success.value = '登录成功，正在跳转...'
+    setTimeout(() => {
+      router.push('/dashboard')
+    }, 500)
   } else {
     error.value = result.message
   }
@@ -71,7 +76,13 @@ const goHome = () => {
           />
         </div>
 
+        <div v-if="success" class="success-message">
+          <span class="icon">✓</span>
+          {{ success }}
+        </div>
+
         <div v-if="error" class="error-message">
+          <span class="icon">✕</span>
           {{ error }}
         </div>
 
@@ -159,6 +170,23 @@ const goHome = () => {
   cursor: not-allowed;
 }
 
+.success-message {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.success-message .icon {
+  font-weight: bold;
+}
+
 .error-message {
   background-color: #fff2f0;
   border: 1px solid #ffccc7;
@@ -167,6 +195,13 @@ const goHome = () => {
   border-radius: 8px;
   margin-bottom: 1rem;
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-message .icon {
+  font-weight: bold;
 }
 
 .btn-login {
