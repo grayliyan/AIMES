@@ -6,18 +6,42 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'home',
+      name: '首页',
       component: HomeView
     },
     {
       path: '/about',
-      name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
+      name: '关于',
       component: () => import('../views/AboutView.vue')
+    },
+    {
+      path: '/login',
+      name: '登录',
+      component: () => import('../views/LoginView.vue')
+    },
+    {
+      path: '/register',
+      name: '注册',
+      component: () => import('../views/RegisterView.vue')
+    },
+    {
+      path: '/dashboard',
+      name: '控制面板',
+      component: () => import('../views/DashboardView.vue'),
+      meta: { requiresAuth: true }
     }
   ]
+})
+
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+
+  if (to.meta.requiresAuth && !token) {
+    next('/login')
+  } else {
+    next()
+  }
 })
 
 export default router

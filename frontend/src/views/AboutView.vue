@@ -1,7 +1,14 @@
+<script setup>
+import { ref } from 'vue'
+
+const message = ref('关于我们')
+</script>
+
 <template>
   <div class="about">
-    <h1>About Knowledge Base System</h1>
-    <p>This is a company internal knowledge base system with RAG-powered Q&A.</p>
+    <h1>{{ message }}</h1>
+    <p>知识库系统是一个企业内部知识管理与智能问答平台。</p>
+    <p>我们致力于帮助企业高效管理和利用内部知识资源。</p>
   </div>
 </template>
 
@@ -20,5 +27,6 @@ h1 {
 
 p {
   color: #666;
+  margin-bottom: 0.5rem;
 }
 </style>
