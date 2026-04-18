@@ -29,6 +29,18 @@ const router = createRouter({
       name: '控制面板',
       component: () => import('../views/DashboardView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/documents',
+      name: '文档管理',
+      component: () => import('../views/DocumentsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/qa',
+      name: '智能问答',
+      component: () => import('../views/QaView.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })
