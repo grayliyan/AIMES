@@ -138,7 +138,7 @@ const goHome = () => {
           {{ error }}
         </div>
 
-        <button type="submit" class="btn-register" :disabled="loading || success">
+        <button type="submit" class="btn-register" :disabled="loading || !!success">
           {{ loading ? '注册中...' : '注 册' }}
         </button>
       </form>
