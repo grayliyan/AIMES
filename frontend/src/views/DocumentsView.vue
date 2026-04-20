@@ -1,27 +1,58 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import axios from 'axios'
 
 const router = useRouter()
 const userStore = useUserStore()
 const user = ref(userStore.user)
 
-const documents = ref([
-  { id: 1, title: '公司规章制度', category: '管理制度', tags: '人事,行政', created_at: '2024-01-15' },
-  { id: 2, title: '新员工入职指南', category: '培训资料', tags: '入职,培训', created_at: '2024-01-20' },
-  { id: 3, title: '项目开发流程', category: '技术文档', tags: '开发,流程', created_at: '2024-02-01' },
-  { id: 4, title: 'API接口文档', category: '技术文档', tags: 'API,接口', created_at: '2024-02-10' },
-])
+const API_URL = 'http://localhost:8000/api/v1'
 
+const documents = ref([])
 const searchQuery = ref('')
 const showCreateModal = ref(false)
+const showUploadModal = ref(false)
+const loading = ref(false)
+const error = ref('')
 
 const newDoc = ref({
   title: '',
   content: '',
   category: '',
   tags: ''
+})
+
+const uploadForm = ref({
+  title: '',
+  category: '',
+  tags: '',
+  file: null
+})
+const selectedFileName = ref('')
+
+const showEditModal = ref(false)
+const editingDoc = ref({
+  id: null,
+  title: '',
+  content: '',
+  category: '',
+  tags: ''
+})
+
+// 获取文档列表
+const fetchDocuments = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/documents/`)
+    documents.value = response.data
+  } catch (err) {
+    console.error('获取文档列表失败:', err)
+  }
+}
+
+onMounted(() => {
+  fetchDocuments()
 })
 
 const handleLogout = () => {
@@ -37,23 +68,236 @@ const handleCreateDoc = () => {
   showCreateModal.value = true
 }
 
+const handleUploadDoc = () => {
+  showUploadModal.value = true
+}
+
 const closeModal = () => {
   showCreateModal.value = false
   newDoc.value = { title: '', content: '', category: '', tags: '' }
 }
 
-const submitDoc = () => {
-  if (newDoc.value.title && newDoc.value.content) {
-    documents.value.unshift({
-      id: documents.value.length + 1,
-      title: newDoc.value.title,
-      category: newDoc.value.category || '未分类',
-      tags: newDoc.value.tags || '',
-      created_at: new Date().toISOString().split('T')[0]
-    })
-    closeModal()
+const closeUploadModal = () => {
+  showUploadModal.value = false
+  uploadForm.value = { title: '', category: '', tags: '', file: null }
+  selectedFileName.value = ''
+  error.value = ''
+}
+
+const handleFileSelect = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    uploadForm.value.file = file
+    selectedFileName.value = file.name
+    // 如果没有填写标题，使用文件名作为标题
+    if (!uploadForm.value.title) {
+      uploadForm.value.title = file.name.replace(/\.[^/.]+$/, '')
+    }
   }
 }
+
+const submitDoc = async () => {
+  if (!newDoc.value.title || !newDoc.value.content) {
+    error.value = '请填写标题和内容'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const response = await axios.post(`${API_URL}/documents/`, {
+      title: newDoc.value.title,
+      content: newDoc.value.content,
+      category: newDoc.value.category || null,
+      tags: newDoc.value.tags || null
+    })
+    documents.value.unshift(response.data)
+    closeModal()
+  } catch (err) {
+    error.value = err.response?.data?.detail || '创建文档失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+const submitUpload = async () => {
+  if (!uploadForm.value.file) {
+    error.value = '请选择文件'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const formData = new FormData()
+    formData.append('file', uploadForm.value.file)
+    if (uploadForm.value.title) {
+      formData.append('title', uploadForm.value.title)
+    }
+    if (uploadForm.value.category) {
+      formData.append('category', uploadForm.value.category)
+    }
+    if (uploadForm.value.tags) {
+      formData.append('tags', uploadForm.value.tags)
+    }
+
+    const response = await axios.post(`${API_URL}/documents/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    documents.value.unshift(response.data)
+    closeUploadModal()
+  } catch (err) {
+    error.value = err.response?.data?.detail || '上传文档失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+const deleteDocument = async (id) => {
+  if (!confirm('确定要删除这个文档吗？')) return
+  
+  try {
+    await axios.delete(`${API_URL}/documents/${id}`)
+    documents.value = documents.value.filter(doc => doc.id !== id)
+  } catch (err) {
+    alert('删除文档失败')
+  }
+}
+
+const openEditModal = (doc) => {
+  editingDoc.value = {
+    id: doc.id,
+    title: doc.title,
+    content: doc.content || '',
+    category: doc.category || '',
+    tags: doc.tags || ''
+  }
+  showEditModal.value = true
+}
+
+const closeEditModal = () => {
+  showEditModal.value = false
+  editingDoc.value = { id: null, title: '', content: '', category: '', tags: '' }
+  error.value = ''
+}
+
+const submitEdit = async () => {
+  if (!editingDoc.value.title) {
+    error.value = '请填写标题'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const response = await axios.put(`${API_URL}/documents/${editingDoc.value.id}`, {
+      title: editingDoc.value.title,
+      content: editingDoc.value.content,
+      category: editingDoc.value.category || null,
+      tags: editingDoc.value.tags || null
+    })
+    const index = documents.value.findIndex(doc => doc.id === editingDoc.value.id)
+    if (index !== -1) {
+      documents.value[index] = response.data
+    }
+    closeEditModal()
+  } catch (err) {
+    error.value = err.response?.data?.detail || '更新文档失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const getFileIcon = (fileType) => {
+  const icons = {
+    'txt': '📄',
+    'md': '📝',
+    'pdf': '📕',
+    'doc': '📘',
+    'docx': '📘'
+  }
+  return icons[fileType] || '📄'
+}
+
+const getParseStatusText = (status) => {
+  const statusMap = {
+    'pending': '待解析',
+    'parsing': '解析中',
+    'completed': '已解析',
+    'failed': '解析失败'
+  }
+  return statusMap[status] || status
+}
+
+const getParseStatusClass = (status) => {
+  const classMap = {
+    'pending': 'status-pending',
+    'parsing': 'status-parsing',
+    'completed': 'status-completed',
+    'failed': 'status-failed'
+  }
+  return classMap[status] || ''
+}
+
+const reparseDocument = async (id) => {
+  try {
+    const response = await axios.post(`${API_URL}/documents/${id}/reparse`)
+    const index = documents.value.findIndex(doc => doc.id === id)
+    if (index !== -1) {
+      documents.value[index] = response.data
+    }
+  } catch (err) {
+    alert('重新解析失败')
+  }
+}
+
+// 轮询检查解析状态
+const checkParseStatus = async () => {
+  const parsingDocs = documents.value.filter(doc => doc.parse_status === 'parsing' || doc.parse_status === 'pending')
+  for (const doc of parsingDocs) {
+    try {
+      const response = await axios.get(`${API_URL}/documents/${doc.id}/parse-status`)
+      const index = documents.value.findIndex(d => d.id === doc.id)
+      if (index !== -1 && documents.value[index].parse_status !== response.data.parse_status) {
+        documents.value[index].parse_status = response.data.parse_status
+        documents.value[index].ragflow_dataset_id = response.data.ragflow_dataset_id
+        documents.value[index].ragflow_document_id = response.data.ragflow_document_id
+      }
+    } catch (err) {
+      console.error('检查解析状态失败:', err)
+    }
+  }
+}
+
+onMounted(() => {
+  fetchDocuments()
+  // 每5秒检查一次解析状态
+  setInterval(checkParseStatus, 5000)
+})
 </script>
 
 <template>
@@ -67,6 +311,10 @@ const submitDoc = () => {
         <router-link to="/dashboard" class="nav-link">首页</router-link>
         <router-link to="/documents" class="nav-link active">文档管理</router-link>
         <router-link to="/qa" class="nav-link">智能问答</router-link>
+        <template v-if="user?.is_superuser">
+          <router-link to="/users" class="nav-link">用户管理</router-link>
+          <router-link to="/roles" class="nav-link">角色管理</router-link>
+        </template>
       </nav>
       <div class="user-info">
         <span class="username">{{ user?.full_name || user?.username }}</span>
@@ -90,23 +338,46 @@ const submitDoc = () => {
           />
           <button @click="handleSearch" class="btn-search">🔍 搜索</button>
         </div>
-        <button @click="handleCreateDoc" class="btn-create">➕ 新建文档</button>
+        <div class="action-buttons">
+          <a v-if="user?.is_superuser" href="http://localhost:9380" target="_blank" class="btn-ragflow">🔧 RAGFlow管理</a>
+          <button @click="handleUploadDoc" class="btn-upload">📤 上传文档</button>
+          <button @click="handleCreateDoc" class="btn-create">➕ 新建文档</button>
+        </div>
       </div>
 
       <div class="documents-list">
         <div class="doc-card" v-for="doc in documents" :key="doc.id">
           <div class="doc-header">
-            <h3>{{ doc.title }}</h3>
-            <span class="doc-category">{{ doc.category }}</span>
+            <div class="doc-title-wrapper">
+              <span v-if="doc.file_type" class="file-icon">{{ getFileIcon(doc.file_type) }}</span>
+              <h3>{{ doc.title }}</h3>
+            </div>
+            <span class="doc-category">{{ doc.category || '未分类' }}</span>
+          </div>
+          <div class="doc-info" v-if="doc.file_name">
+            <span class="file-info">{{ doc.file_name }} ({{ formatFileSize(doc.file_size) }})</span>
+            <span v-if="doc.parse_status" :class="['parse-status', getParseStatusClass(doc.parse_status)]">
+              {{ getParseStatusText(doc.parse_status) }}
+              <button 
+                v-if="doc.parse_status === 'failed'" 
+                class="btn-reparse" 
+                @click.stop="reparseDocument(doc.id)"
+              >
+                重试
+              </button>
+            </span>
           </div>
           <div class="doc-tags" v-if="doc.tags">
             <span class="tag" v-for="tag in doc.tags.split(',')" :key="tag">{{ tag }}</span>
           </div>
           <div class="doc-footer">
-            <span class="doc-date">{{ doc.created_at }}</span>
+            <span class="doc-date">{{ formatDate(doc.created_at) }}</span>
             <div class="doc-actions">
-              <button class="btn-edit">编辑</button>
-              <button class="btn-delete">删除</button>
+              <button class="btn-parse" v-if="doc.file_name" @click="reparseDocument(doc.id)" :disabled="doc.parse_status === 'parsing'">
+                {{ doc.parse_status === 'parsing' ? '解析中...' : '解析' }}
+              </button>
+              <button class="btn-edit" @click="openEditModal(doc)">编辑</button>
+              <button class="btn-delete" @click="deleteDocument(doc.id)">删除</button>
             </div>
           </div>
         </div>
@@ -121,6 +392,7 @@ const submitDoc = () => {
           <button class="btn-close" @click="closeModal">✕</button>
         </div>
         <div class="modal-body">
+          <div v-if="error" class="error-message">{{ error }}</div>
           <div class="form-group">
             <label>标题 <span class="required">*</span></label>
             <input v-model="newDoc.title" type="text" placeholder="请输入文档标题" />
@@ -140,7 +412,93 @@ const submitDoc = () => {
         </div>
         <div class="modal-footer">
           <button class="btn-cancel" @click="closeModal">取消</button>
-          <button class="btn-submit" @click="submitDoc">创建</button>
+          <button class="btn-submit" @click="submitDoc" :disabled="loading">
+            {{ loading ? '创建中...' : '创建' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上传文档弹窗 -->
+    <div class="modal-overlay" v-if="showUploadModal" @click="closeUploadModal">
+      <div class="modal" @click.stop>
+        <div class="modal-header">
+          <h3>上传文档</h3>
+          <button class="btn-close" @click="closeUploadModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="error" class="error-message">{{ error }}</div>
+          <div class="form-group">
+            <label>选择文件 <span class="required">*</span></label>
+            <div class="file-upload-area">
+              <input 
+                type="file" 
+                id="file-input"
+                accept=".txt,.md,.pdf,.doc,.docx"
+                @change="handleFileSelect"
+                hidden
+              />
+              <label for="file-input" class="file-upload-label">
+                <span class="upload-icon">📁</span>
+                <span v-if="!selectedFileName">点击选择文件</span>
+                <span v-else class="selected-file">{{ selectedFileName }}</span>
+              </label>
+            </div>
+            <p class="file-hint">支持的格式: TXT, MD, PDF, DOC, DOCX</p>
+          </div>
+          <div class="form-group">
+            <label>标题</label>
+            <input v-model="uploadForm.title" type="text" placeholder="默认使用文件名" />
+          </div>
+          <div class="form-group">
+            <label>分类</label>
+            <input v-model="uploadForm.category" type="text" placeholder="请输入分类" />
+          </div>
+          <div class="form-group">
+            <label>标签</label>
+            <input v-model="uploadForm.tags" type="text" placeholder="多个标签用逗号分隔" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="closeUploadModal">取消</button>
+          <button class="btn-submit" @click="submitUpload" :disabled="loading || !uploadForm.file">
+            {{ loading ? '上传中...' : '上传' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑文档弹窗 -->
+    <div class="modal-overlay" v-if="showEditModal" @click="closeEditModal">
+      <div class="modal" @click.stop>
+        <div class="modal-header">
+          <h3>编辑文档</h3>
+          <button class="btn-close" @click="closeEditModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="error" class="error-message">{{ error }}</div>
+          <div class="form-group">
+            <label>标题 <span class="required">*</span></label>
+            <input v-model="editingDoc.title" type="text" placeholder="请输入文档标题" />
+          </div>
+          <div class="form-group">
+            <label>分类</label>
+            <input v-model="editingDoc.category" type="text" placeholder="请输入分类" />
+          </div>
+          <div class="form-group">
+            <label>标签</label>
+            <input v-model="editingDoc.tags" type="text" placeholder="多个标签用逗号分隔" />
+          </div>
+          <div class="form-group">
+            <label>内容</label>
+            <textarea v-model="editingDoc.content" rows="6" placeholder="请输入文档内容"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="closeEditModal">取消</button>
+          <button class="btn-submit" @click="submitEdit" :disabled="loading">
+            {{ loading ? '保存中...' : '保存' }}
+          </button>
         </div>
       </div>
     </div>
@@ -257,6 +615,25 @@ const submitDoc = () => {
   cursor: pointer;
 }
 
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-upload {
+  padding: 0.75rem 1.5rem;
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-upload:hover {
+  background: #389e05;
+}
+
 .btn-create {
   padding: 0.75rem 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -265,6 +642,23 @@ const submitDoc = () => {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
+}
+
+.btn-ragflow {
+  padding: 0.75rem 1.5rem;
+  background: #722ed1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-ragflow:hover {
+  background: #531dab;
 }
 
 .documents-list {
@@ -289,7 +683,17 @@ const submitDoc = () => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-icon {
+  font-size: 1.25rem;
 }
 
 .doc-header h3 {
@@ -304,6 +708,59 @@ const submitDoc = () => {
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
   font-size: 0.8rem;
+}
+
+.doc-info {
+  margin-bottom: 0.75rem;
+}
+
+.file-info {
+  color: #999;
+  font-size: 0.85rem;
+}
+
+.parse-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.status-pending {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.status-parsing {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.status-completed {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.status-failed {
+  background: #fff2f0;
+  color: #ff4d4f;
+}
+
+.btn-reparse {
+  padding: 0.1rem 0.3rem;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.btn-reparse:hover {
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .doc-tags {
@@ -347,6 +804,25 @@ const submitDoc = () => {
   font-size: 0.85rem;
 }
 
+.btn-parse {
+  padding: 0.4rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  background: #1890ff;
+  color: white;
+}
+
+.btn-parse:hover:not(:disabled) {
+  background: #096dd9;
+}
+
+.btn-parse:disabled {
+  background: #91d5ff;
+  cursor: not-allowed;
+}
+
 .btn-edit {
   background: #e6f7ff;
   color: #1890ff;
@@ -375,7 +851,7 @@ const submitDoc = () => {
   background: white;
   border-radius: 12px;
   width: 90%;
-  max-width: 600px;
+  max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
 }
@@ -400,6 +876,16 @@ const submitDoc = () => {
 
 .modal-body {
   padding: 1.5rem;
+}
+
+.error-message {
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 .form-group {
@@ -429,6 +915,43 @@ const submitDoc = () => {
   border-color: #667eea;
 }
 
+.file-upload-area {
+  margin-bottom: 0.5rem;
+}
+
+.file-upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 2px dashed #e1e5eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-upload-label:hover {
+  border-color: #667eea;
+  background-color: rgba(102, 126, 234, 0.05);
+}
+
+.upload-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.selected-file {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.file-hint {
+  color: #999;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -452,5 +975,10 @@ const submitDoc = () => {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

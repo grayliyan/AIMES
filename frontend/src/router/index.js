@@ -41,6 +41,18 @@ const router = createRouter({
       name: '智能问答',
       component: () => import('../views/QaView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/users',
+      name: '用户管理',
+      component: () => import('../views/UsersView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/roles',
+      name: '角色管理',
+      component: () => import('../views/RolesView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
     }
   ]
 })
@@ -48,7 +60,7 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
-
+  
   if (to.meta.requiresAuth && !token) {
     next('/login')
   } else {

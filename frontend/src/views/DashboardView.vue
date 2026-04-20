@@ -25,6 +25,10 @@ const handleLogout = () => {
         <router-link to="/dashboard" class="nav-link active">首页</router-link>
         <router-link to="/documents" class="nav-link">文档管理</router-link>
         <router-link to="/qa" class="nav-link">智能问答</router-link>
+        <template v-if="user?.is_superuser">
+          <router-link to="/users" class="nav-link">用户管理</router-link>
+          <router-link to="/roles" class="nav-link">角色管理</router-link>
+        </template>
       </nav>
       <div class="user-info">
         <span class="username">{{ user?.full_name || user?.username }}</span>

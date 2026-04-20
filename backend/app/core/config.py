@@ -43,6 +43,11 @@ class Settings(BaseSettings):
             path=f"{values.get('POSTGRES_DB') or ''}",
         )
 
+    # RAGFlow 配置
+    RAGFLOW_API_URL: str = "http://ragflow:80"
+    RAGFLOW_API_TOKEN: str = ""
+    RAGFLOW_DEFAULT_DATASET_ID: str = ""
+
     class Config:
         case_sensitive = True
         env_file = ".env"
